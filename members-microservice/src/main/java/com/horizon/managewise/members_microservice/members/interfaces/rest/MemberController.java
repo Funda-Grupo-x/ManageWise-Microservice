@@ -1,0 +1,102 @@
+package com.horizon.managewise.members_microservice.members.interfaces.rest;
+
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import com.horizon.managewise.members_microservice.members.domain.model.commands.DeleteMemberCommand;
+import com.horizon.managewise.members_microservice.members.domain.model.queries.GetAllMembersQuery;
+import com.horizon.managewise.members_microservice.members.domain.model.queries.GetMemberByIdQuery;
+import com.horizon.managewise.members_microservice.members.domain.services.MemberCommandService;
+import com.horizon.managewise.members_microservice.members.domain.services.MemberQueryService;
+import com.horizon.managewise.members_microservice.members.interfaces.rest.resources.CreateMemberResource;
+import com.horizon.managewise.members_microservice.members.interfaces.rest.resources.MemberResource;
+import com.horizon.managewise.members_microservice.members.interfaces.rest.transform.CreateMemberCommandFromResourceAssembler;
+import com.horizon.managewise.members_microservice.members.interfaces.rest.transform.MemberResourceFromEntityAssembler;
+import com.horizon.managewise.members_microservice.members.interfaces.rest.transform.UpdateMemberCommandFromResourceAssembler;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@CrossOrigin(origins = "*", methods = { RequestMethod.POST, RequestMethod.GET, RequestMethod.PUT, RequestMethod.DELETE })
+@RestController
+@RequestMapping(value = "/api/v1/members", produces = MediaType.APPLICATION_JSON_VALUE)
+@Tag(name = "Members", description = "Member Management Endpoints")
+public class MemberController {
+    private final MemberQueryService memberQueryService;
+    private final MemberCommandService memberCommandService;
+
+    public MemberController(MemberQueryService memberQueryService, MemberCommandService memberCommandService) {
+        this.memberQueryService = memberQueryService;
+        this.memberCommandService = memberCommandService;
+    }
+
+    @PostMapping
+    public ResponseEntity<MemberResource> createMember(@RequestBody CreateMemberResource resource){
+        var createMemberCommand = CreateMemberCommandFromResourceAssembler.toCommandFromResource(resource);
+        var memberId = this.memberCommandService.handle(createMemberCommand);
+
+        if(memberId.equals(0L)){
+            return ResponseEntity.badRequest().build();
+        }
+
+        var getMemberByIdQuery = new GetMemberByIdQuery(memberId);
+        var optionMember = this.memberQueryService.handle(getMemberByIdQuery);
+
+        var memberResource = MemberResourceFromEntityAssembler.toResourceFromEntity(optionMember.get());
+        return new ResponseEntity<>(memberResource, HttpStatus.CREATED);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<MemberResource>> getAllMembers() {
+        var getAllMembersQuery = new GetAllMembersQuery();
+        var members = this.memberQueryService.handle(getAllMembersQuery);
+        var memberResources = members.stream()
+                .map(MemberResourceFromEntityAssembler::toResourceFromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(memberResources);
+    }
+
+    @GetMapping("/{memberId}")
+    public ResponseEntity<MemberResource> getMemberById(@PathVariable Long memberId) {
+        var getMemberByIdQuery = new GetMemberByIdQuery(memberId);
+        var optionalMember = this.memberQueryService.handle(getMemberByIdQuery);
+        if (optionalMember.isEmpty())
+            return ResponseEntity.notFound().build();
+        var memberResource = MemberResourceFromEntityAssembler.toResourceFromEntity(optionalMember.get());
+        return ResponseEntity.ok(memberResource);
+    }
+
+    @PutMapping("/{memberId}")
+    public ResponseEntity<MemberResource> updateIssue(@PathVariable Long memberId, @RequestBody MemberResource resource) {
+        //Crea el command y el handle
+        var updateMemberCommand = UpdateMemberCommandFromResourceAssembler.toCommandFromResource(memberId, resource);
+        var optionalMember = this.memberCommandService.handle(updateMemberCommand);
+        //valida que el optional profile esta vacio o no
+        if (optionalMember.isEmpty())
+            return ResponseEntity.badRequest().build();
+        //en caso que no este vacio
+        //lo convierto a un profile resource
+        var memberResource = MemberResourceFromEntityAssembler.toResourceFromEntity(optionalMember.get());
+        //lo devuelvo
+        return ResponseEntity.ok(memberResource);
+    }
+
+    //annotacion DeleteMapping
+    // y establecemos si tendra alguna ruta en el path profileId
+    @DeleteMapping("/{memberId}")
+    //recordemos quetodo controller es Response Entitiy
+    //El delete va acompañado d eun identificador para encontrarloy eliminarlo
+    //Cuando es delete no hay respuesta , es vacio o aveces un valor determinado
+    //por eso tiene el ?
+    public ResponseEntity<?> deleteIssue(@PathVariable Long memberId) {
+        //Creamos el Command y el handler
+        var deleteMemberCommand = new DeleteMemberCommand(memberId);
+        this.memberCommandService.handle(deleteMemberCommand);
+        //devolvemos la respuesta
+        //aca no debemos enviar mensaje de error,
+        // en este caso seria solo el noContent de que no ecnontro el resource
+        return ResponseEntity.noContent().build();
+    }
+}
