@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  discovery-server:
+    build:
+      context: ./discovery-microservice
+      dockerfile: Dockerfile
+    container_name: discovery-server
+    ports:
+      - "8761:8761"
+    networks:
+      - spring-network
+
+  config-server:
+    build:
+      context: ./config-microservice
+      dockerfile: Dockerfile
+    container_name: config-server
+    ports:
+      - "8888:8888"
+    networks:
+      - spring-network
+    depends_on:
+      - discovery-server
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    networks:
+      - spring-network
+    depends_on:
+      - discovery-server
+
+  backlog-service:
+    build:
+      context: ./backlog-microservice
+      dockerfile: Dockerfile
+    container_name: backlog-service
+    ports:
+      - "8081:8080"
+    networks:
+      - spring-network
+    depends_on:
+      - discovery-server
+
+  iam-service:
+    build:
+      context: ./iam-microservice
+      dockerfile: Dockerfile
+    container_name: iam-service
+    ports:
+      - "8082:8080"
+    networks:
+      - spring-network
+    depends_on:
+      - discovery-server
+
+  meeting-service:
+    build:
+      context: ./meeting-microservice
+      dockerfile: Dockerfile
+    container_name: meeting-service
+    ports:
+      - "8083:8080"
+    networks:
+      - spring-network
+    depends_on:
+      - discovery-server
+
+  members-service:
+    build:
+      context: ./members-microservice
+      dockerfile: Dockerfile
+    container_name: members-service
+    ports:
+      - "8084:8080"
+    networks:
+      - spring-network
+    depends_on:
+      - discovery-server
+
+networks:
+  spring-network:
+    driver: bridge
